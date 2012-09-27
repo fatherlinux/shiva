@@ -1,0 +1,352 @@
+#!/bin/bash
+#
+# Writen By: Scott McCarty
+# Date: 9/2012
+# Email: scott.mccarty@gmail.com
+# Version: .5
+# Description: Simple mass ssh script using bash background
+# functions and sane conifguration files
+#
+# Copyright (C) 2009 Scott McCarty
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 3
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc.
+# 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+#
+###############################################################################
+
+set -e
+
+debug() {
+    if [ $debug -eq 1 ]
+    then
+        echo "Debug: $1";
+    fi
+}
+
+usage() {
+    echo ""
+    echo "USAGE:"
+    echo "    $0 [options] [command]"
+    echo "Where options is any of:"
+    echo "    c <file>        - Get config from <file>"
+    echo "    f <file>        - Get clients list from <file>"
+    echo "    g <group name>  - Get clients list from <group name>"
+    echo "    l               - List groups"
+    echo "    v               - Verbose"
+    echo "    h               - Help"
+    echo ""
+    exit 1;
+}
+
+get_config() {
+    if [ -e "/usr/local/etc/$1" ]
+    then
+        echo "/usr/local/etc/$1"
+    elif [ -e ./$1 ]
+    then
+        echo "$1"
+    else
+        echo "Could not find: $1" >&2
+        exit 1
+    fi
+}
+
+init() {
+
+    # Set Defaults
+    remote_clients_file=`get_config shiva.list`
+    config_file=`get_config shiva.conf`
+    debug=0
+    test_mode=0
+    source $config_file
+
+    # Get options
+    while getopts "c:f:g:ltvh" options; do
+        case $options in
+            c ) config_file="$OPTARG";source $config_file;;
+            f ) remote_clients_file="$OPTARG";;
+            g ) remote_clients_file="$group_files/$OPTARG";;
+            l ) ls -1 $group_files/;exit;;
+            t ) test_mode=1;;
+            v ) debug=1;;
+            h ) usage;;
+            \? ) usage;;
+        esac
+    done
+
+    shift $(( OPTIND-1 ))
+
+    ## Determineif command was passed
+   if [ "$1" != "" ]
+   then 
+       export command="$1"
+   else
+       usage
+       exit 1
+   fi
+
+    ## Commands
+    export PATH="$PATH:/sbin:/bin:/usr/sbin:/usr/bin"
+    awk=`which awk`
+    grep=`which grep`
+    tail=`which tail`
+    ps=`which ps`
+    sort=`which sort`
+    wc=`which wc`
+    echo=`which echo`
+    cat=`which cat`
+    find=`which find`
+    mail=`which mail`
+    sshd=`which sshd`
+    rm=`which rm`
+    mv=`which mv`
+    sed=`which sed`
+    touch=`which touch`
+    mkdir=`which mkdir`
+    scriptlog=`which echo`
+    user=root
+
+    ## Turn on/off options
+    option_keychain
+    option_scriptlog
+
+    # Tunables
+    ssh_options=""
+
+    ## Variables
+    remote_clients=`cat $remote_clients_file|grep -v ^#`
+    fail_list=""
+    success_list=""
+    remote_client_number=0
+    script_name=`basename $0`
+    short_wait=3
+    long_wait=3
+
+    display_debug
+
+    ## Record start time
+    start_time=`date`
+}
+
+display_debug() {
+
+    # Debug Output      
+    debug "Client List: $remote_clients_file";
+    debug "Config: $config_file"
+    debug "Email: $email_address"
+    debug "Email Support: $email_support"
+    debug "Keychain Support: $keychain_support"
+    debug "Scriptlog Support: $scriptlog_support"
+    debug "Slots: $max_slots"
+}
+
+option_keychain() {
+
+    ## Use keyhain if available
+    if [ -e ~/.keychain/$HOSTNAME-sh ]
+    then
+        source ~/.keychain/$HOSTNAME-sh
+        keychain_support="true"
+    else
+        keychain_support="false"
+    fi
+}
+
+option_scriptlog() {
+
+    ## Option: Use scriptlog if available
+    if which scriptlog &>/dev/null
+    then
+        export scriptlog=`which scriptlog`
+        scriptlog_support="true"
+    else
+        export scriptlog_echo="`which echo`"
+        scriptlog_support="false"
+    fi
+}
+
+safe_run() {
+
+    # Run from the tmp command file, because there is problems on different
+    # shell/versions/operating systems and quoting.
+    $echo $1 > /tmp/${script_name}.$$.${remote_client}.safe_command
+    if scp /tmp/${script_name}.$$.${remote_client}.safe_command ${user}@${remote_client}:/tmp/${script_name}.$$.${remote_client}.safe_command &>/dev/null
+    then
+        ssh ${user}@${remote_client} "sh /tmp/${script_name}.$$.${remote_client}.safe_command" >> /tmp/shiva.log
+    fi
+    $rm -f /tmp/${script_name}.$$.${remote_client}.safe_command
+}
+
+used_slots() {
+    ls /tmp/$script_name.$$.*.running 2>/dev/null | wc -l || $echo 0
+}
+
+find_open_slot() {
+
+    if  [ `used_slots` -lt "$max_slots" ]
+    then
+        debug "Found open slot"
+        return 0
+    else
+        debug "Did not find open slot"
+        return 1
+    fi
+}
+
+background_command() {
+###############################################################################
+# Keep track of start/stop times
+###############################################################################
+
+    $scriptlog_echo "Started client: $remote_client, Parent: $$"
+
+    $touch /tmp/${script_name}.$$.$remote_client.running
+
+    # Perform
+    foreground_command
+
+    # Log time finished
+    $scriptlog_echo "Finished client: $remote_client, Parent: $$"
+}
+
+foreground_command() {
+
+    debug "Running: $command"
+
+    # Keep track of running processes using tmp files
+    if safe_run "$command"
+    then
+        mv /tmp/${script_name}.$$.${remote_client}.running /tmp/${script_name}.$$.${remote_client}.success
+    else
+        mv /tmp/${script_name}.$$.${remote_client}.running /tmp/${script_name}.$$.${remote_client}.failed
+    fi
+}
+
+job_control() {
+###############################################################################
+# Use the magic of recursion to try and find an open slot
+# May have to fine tune sleep time for bash
+###############################################################################
+
+    if find_open_slot
+    then
+        # If there is an open slot, fire off another job
+        background_command &
+        sleep $short_wait
+    else
+        sleep $long_wait
+        job_control
+    fi
+}
+
+wait_jobs() {
+###############################################################################
+# Use a little magical recurstion to wait for all jobs to finish
+###############################################################################
+
+    if  [ `used_slots` -eq "0" ]
+    then
+        debug "All jobs have completed"
+        return 0
+    else
+        debug "Waiting for running jobs"
+        sleep $long_wait
+        wait_jobs
+    fi
+}
+
+main() {
+
+    # Main loop
+    for remote_client in $remote_clients
+    do
+        job_control
+
+        # Check/Calculat results of rsync
+        let "remote_client_number = $remote_client_number + 1"
+    done
+
+    # After all jobs have began, wait for final job to finish
+    wait_jobs
+
+    # Calculate final end time
+    end_time=`date`
+
+}
+
+report () {
+
+    # Build lists
+    for remote_client in $remote_clients
+    do
+        sleep $short_wait
+        if [ -e /tmp/${script_name}.$$.${remote_client}.success ]
+        then
+            debug "Adding $remote_client to success list"
+            rsync_success_list="$rsync_success_list $remote_client"
+            rm -f /tmp/${script_name}.$$.$remote_client.success
+        else
+            debug "Adding $remote_client to fail list"
+            rsync_fail_list="$rsync_fail_list $remote_client"
+            rm -f /tmp/${script_name}.$$.$remote_client.failed
+        fi
+    done
+
+    # Setup logging
+    exec 3>/tmp/${script_name}.$$.tmp
+
+    # Reporting
+    $echo "Shiva from $HOSTNAME: Completed, $remote_client_number client(s)" >&3
+    $echo "" >&3
+    $echo "Start time: $start_time" >&3
+    $echo "End time:   $end_time" >&3
+    $echo "" >&3
+
+    if [ "$rsync_fail_list" = "" ]
+    then
+        $echo "--- Successful Save Sets ---" >&3
+
+        for i in $rsync_success_list
+        do
+            $echo $i >&3
+        done
+    else
+        $echo "--- Unsuccessful Save Sets ---" >&3
+
+        for i in $rsync_fail_list
+        do
+            $echo $i >&3
+        done
+    fi
+
+    # Send report
+    if [ "$email_support" == "true" ]
+    then
+        $cat /tmp/${script_name}.$$.tmp|$mail -s "Shiva Complete" $email_address
+    fi
+
+
+    # Safety Net Cleanup
+    $rm -f /tmp/${script_name}.$$.*.success &>/dev/null
+    $rm -f /tmp/${script_name}.$$.*.failed &>/dev/null
+    $rm -f /tmp/${script_name}.$$.*.running &>/dev/null
+    $find /tmp/shiva.sh.*.tmp -mmin +120 -exec rm -f {} \; &>/dev/null
+}
+
+
+# main
+init $*
+main
+report
