@@ -63,22 +63,51 @@ get_config() {
     fi
 }
 
+get_remote_clients_list() {
+    # Logic to determine what was passed into shiva: file, groupname, spacecmd groupname
+
+    if [ -e $group_files/$1 ]
+    then
+        # Found group in local group file
+        remote_clients=`cat $group_files/$1 | grep -v ^#`
+    elif [ -e $1 ]
+    then
+        # Found group in manually specified group file
+        remote_clients=`cat $1 | grep -v ^#`
+    elif [ "$spacecmd_support" = "true" ] && $spacecmd -q --server=$spacecmd_hostname -u $spacecmd_username -p $spacecmd_password group_list | grep $1 
+    then
+        remote_clients=`$spacecmd -q --server=$spacecmd_hostname -u $spacecmd_username -p $spacecmd_password group_listsystems $1 | sed -e 's/\x1b\[?1034h//'`
+    elif [ -e `get_config shiva.list` ]
+    then
+        # Using default list
+        remote_clients=`cat `get_config shiva.list` | grep -v ^#`
+    else
+        $echo "Could not find a list of servers"
+        exit
+    fi
+
+}
+
 init() {
 
     # Set Defaults
-    remote_clients_file=`get_config shiva.list`
     config_file=`get_config shiva.conf`
     debug=0
     test_mode=0
     source $config_file
 
+    ## Turn on/off options
+    option_keychain
+    option_scriptlog
+    option_spacecmd
+
     # Get options
     while getopts "c:f:g:ltvh" options; do
         case $options in
             c ) config_file="$OPTARG";source $config_file;;
-            f ) remote_clients_file="$OPTARG";;
-            g ) remote_clients_file="$group_files/$OPTARG";;
-            l ) ls -1 $group_files/;exit;;
+            f ) get_remote_clients_list $OPTARG;;
+            g ) get_remote_clients_list $OPTARG;;
+            l ) list_groups;;
             t ) test_mode=1;;
             v ) debug=1;;
             h ) usage;;
@@ -116,17 +145,12 @@ init() {
     touch=`which touch`
     mkdir=`which mkdir`
     scriptlog=`which echo`
-    user=root
-
-    ## Turn on/off options
-    option_keychain
-    option_scriptlog
 
     # Tunables
     ssh_options=""
+    user=root
 
     ## Variables
-    remote_clients=`cat $remote_clients_file|grep -v ^#`
     unsuccessful_list=""
     successful_list=""
     remote_client_number=0
@@ -143,13 +167,14 @@ init() {
 display_debug() {
 
     # Debug Output      
-    debug "Client List: $remote_clients_file";
+    debug "Client List: $remote_clients";
     debug "Command: $command"
     debug "Config: $config_file"
     debug "Email: $email_address"
     debug "Email Support: $email_support"
     debug "Keychain Support: $keychain_support"
     debug "Scriptlog Support: $scriptlog_support"
+    debug "Space Command Support: $spacecmd_support"
     debug "Slots: $max_slots"
 }
 
@@ -176,6 +201,28 @@ option_scriptlog() {
         export scriptlog_echo="`which echo`"
         scriptlog_support="false"
     fi
+}
+
+option_spacecmd() {
+
+    ## Option: Use spacecmd if available
+    if which spacecmd &>/dev/null
+    then
+        export spacecmd=`which spacecmd`
+        spacecmd_support="true"
+    else
+        spacecmd_support="false"
+    fi
+}
+
+list_groups() {
+
+    display_debug
+
+    ls -1 $group_files/
+    $spacecmd -q --server=$spacecmd_hostname -u $spacecmd_username -p $spacecmd_password group_list
+    exit
+
 }
 
 safe_run() {
@@ -282,7 +329,6 @@ main() {
 
     # Calculate final end time
     end_time=`date`
-
 }
 
 successful_report() {
