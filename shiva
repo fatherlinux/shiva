@@ -393,11 +393,9 @@ report () {
     if [ "$unsuccessful_list" = "" ]
     then
         successful_report
-    elif [ "$successful_list" = "" ]
+    fi
+    if [ "$successful_list" = "" ]
     then
-        unsuccessful_report
-    else
-        successful_report
         unsuccessful_report
     fi
 
