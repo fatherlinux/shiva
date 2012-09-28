@@ -89,9 +89,9 @@ init() {
     shift $(( OPTIND-1 ))
 
     ## Determineif command was passed
-   if [ "$1" != "" ]
+   if [ "$*" != "" ]
    then 
-       export command="$1"
+       export command="$*"
    else
        usage
        exit 1
