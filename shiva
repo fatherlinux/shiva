@@ -344,15 +344,13 @@ report () {
     $echo "End time:   $end_time" >&3
     $echo "" >&3
 
-    if [ "$unsuccessful_list" = "" ]
-    then
-        successful_report
-    elif [ "$successful_list" = "" ]
+    if [ "$unsuccessful_list" != "" ]
     then
         unsuccessful_report
-    else
+    fi
+    if [ "$successful_list" != "" ]
+    then
         successful_report
-        unsuccessful_report
     fi
 
     # Send report
