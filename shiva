@@ -42,6 +42,7 @@ usage() {
     echo "Where options is any of:"
     echo "    c <file>        - Get config from <file>"
     echo "    f <file>        - Get clients list from <file>"
+    echo "    u <user>        - User to login as (root)" 
     echo "    g <group name>  - Get clients list from <group name>"
     echo "    l               - List groups"
     echo "    v               - Verbose"
@@ -66,6 +67,7 @@ get_config() {
 init() {
 
     # Set Defaults
+    user=root
     remote_clients_file=`get_config shiva.list`
     config_file=`get_config shiva.conf`
     debug=0
@@ -73,10 +75,11 @@ init() {
     source $config_file
 
     # Get options
-    while getopts "c:f:g:ltvh" options; do
+    while getopts "c:f:u:g:ltvh" options; do
         case $options in
             c ) config_file="$OPTARG";source $config_file;;
             f ) remote_clients_file="$OPTARG";;
+            u ) user="$OPTARG";;
             g ) remote_clients_file="$group_files/$OPTARG";;
             l ) ls -1 $group_files/;exit;;
             t ) test_mode=1;;
@@ -116,7 +119,6 @@ init() {
     touch=`which touch`
     mkdir=`which mkdir`
     scriptlog=`which echo`
-    user=root
 
     ## Turn on/off options
     option_keychain
