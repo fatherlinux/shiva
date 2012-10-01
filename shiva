@@ -111,7 +111,7 @@ init() {
             f ) remote_clients_file="$OPTARG";;
             u ) user="$OPTARG";;
             g ) remote_clients_file="$group_files/$OPTARG";;
-            l ) list_groups;;;;
+            l ) list_groups;;
             t ) test_mode=1;;
             v ) debug=1;;
             h ) usage;;
