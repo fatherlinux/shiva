@@ -172,6 +172,11 @@ init() {
     short_wait=3
     long_wait=3
 
+    # Safe String, Safe Command, Safe Command Output
+    export safe_string="${script_name}.${HOSTNAME}.$$.`date +%s`"
+    export safe_command="${safe_string}.safe_command"
+    export safe_output="${safe_string}.safe_output"
+
     display_debug
 
     ## Record start time
@@ -258,12 +263,18 @@ list_members() {
 
 safe_run() {
 
+    # Just to clean up commands below
+    # To prevent collisions, tag almost everything with the remote client name
+    rc=$remote_client
+
+
     # Run from the tmp command file, because there is problems on different
     # shell/versions/operating systems and quoting.
-    $echo $1 > /tmp/${script_name}.$$.${remote_client}.safe_command
-    $scp $ssh_options /tmp/${script_name}.$$.${remote_client}.safe_command ${user}@${remote_client}:/tmp/${script_name}.$$.${remote_client}.safe_command &>/dev/null && \
-    $ssh $ssh_options ${user}@${remote_client} "sh /tmp/${script_name}.$$.${remote_client}.safe_command" &> /tmp/${script_name}.$$.${remote_client}.safe_command_output && \
-    $rm -f /tmp/${script_name}.$$.${remote_client}.safe_command
+    $echo $1 >/tmp/$safe_command.$rc
+    $scp $ssh_options /tmp/$safe_command.$rc ${user}@${rc}:/tmp/$safe_command.$rc &>/dev/null && \
+    $ssh $ssh_options ${user}@${rc} "sh /tmp/$safe_command.$rc" &>/tmp/$safe_output.${rc} && \
+    $rm -f /tmp/$safe_command.$rc && \
+    $ssh $ssh_options ${user}@${rc} "$rm -f /tmp/$safe_command.$rc"
 }
 
 used_slots() {
@@ -373,7 +384,7 @@ successful_report() {
 
             # Standard ouptut
             $echo "=== $remote_client ==="
-            $cat /tmp/${script_name}.$$.${remote_client}.safe_command_output
+            $cat /tmp/$safe_output.${remote_client}
             $echo ""
         done
         $echo ""
@@ -443,6 +454,8 @@ report () {
     $rm -f /tmp/${script_name}.$$.*.successful &>/dev/null
     $rm -f /tmp/${script_name}.$$.*.unsuccessful &>/dev/null
     $rm -f /tmp/${script_name}.$$.*.running &>/dev/null
+    $rm -f /tmp/${safe_string}.safe_command.* &>/dev/null
+    $rm -f /tmp/${safe_string}.safe_output.* &>/dev/null
     $find /tmp/shiva.sh.*.tmp -mmin +120 -exec rm -f {} \; &>/dev/null
 }
 
