@@ -262,7 +262,7 @@ safe_run() {
     # shell/versions/operating systems and quoting.
     $echo $1 > /tmp/${script_name}.$$.${remote_client}.safe_command
     $scp $ssh_options /tmp/${script_name}.$$.${remote_client}.safe_command ${user}@${remote_client}:/tmp/${script_name}.$$.${remote_client}.safe_command &>/dev/null && \
-    $ssh $ssh_options ${user}@${remote_client} "sh /tmp/${script_name}.$$.${remote_client}.safe_command" > /tmp/${script_name}.$$.${remote_client}.safe_command_output && \
+    $ssh $ssh_options ${user}@${remote_client} "sh /tmp/${script_name}.$$.${remote_client}.safe_command" &> /tmp/${script_name}.$$.${remote_client}.safe_command_output && \
     $rm -f /tmp/${script_name}.$$.${remote_client}.safe_command
 }
 
