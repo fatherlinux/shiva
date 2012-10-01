@@ -105,13 +105,14 @@ init() {
     option_spacecmd
 
     # Get options
-    while getopts "c:f:u:g:ltvh" options; do
+    while getopts "c:f:u:g:lL:tvh" options; do
         case $options in
             c ) config_file="$OPTARG";source $config_file;;
             f ) remote_clients_file="$OPTARG";;
             u ) user="$OPTARG";;
             g ) remote_clients_file="$group_files/$OPTARG";;
             l ) list_groups;;
+            L ) list_members $OPTARG;;
             t ) test_mode=1;;
             v ) debug=1;;
             h ) usage;;
@@ -230,7 +231,23 @@ list_groups() {
     ls -1 $group_files/
     $spacecmd -q --server=$spacecmd_hostname -u $spacecmd_username -p $spacecmd_password group_list
     exit
+}
 
+list_members() {
+
+    display_debug
+
+    if [ -e $group_files/$1 ]
+    then
+        cat $group_files/$1
+    elif $spacecmd -q --server=$spacecmd_hostname -u $spacecmd_username -p $spacecmd_password group_listsystems $1 > /tmp/spacecmd.grouplist \
+    && [ `wc -l /tmp/spacecmd.grouplist | awk '{print $1}'` -gt 0 ]
+    then
+        cat /tmp/spacecmd.grouplist
+    else
+	echo "Could not find group: $1"
+    fi
+    exit
 }
 
 safe_run() {
