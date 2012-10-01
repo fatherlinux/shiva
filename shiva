@@ -108,12 +108,12 @@ init() {
     while getopts "c:f:u:g:lL:tvh" options; do
         case $options in
             c ) config_file="$OPTARG";source $config_file;;
-            f ) remote_clients_file="$OPTARG";;
-            u ) user="$OPTARG";;
-            g ) remote_clients_file="$group_files/$OPTARG";;
+            f ) get_remote_clients_list $OPTARG;;
+            g ) get_remote_clients_list $OPTARG;;
             l ) list_groups;;
             L ) list_members $OPTARG;;
             t ) test_mode=1;;
+            u ) user="$OPTARG";;
             v ) debug=1;;
             h ) usage;;
             \? ) usage;;
