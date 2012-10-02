@@ -26,7 +26,7 @@
 #
 ###############################################################################
 
-set -e
+#set -e
 
 debug() {
     if [ $debug -eq 1 ]
@@ -68,16 +68,18 @@ get_config() {
 
 get_remote_clients_list() {
     # Logic to determine what was passed into shiva: file, groupname, spacecmd groupname
+    export group_name="$1"
 
-    if [ -e $group_files/$1 ]
+    if [ -e $group_files/$group_name ]
     then
         # Found group in local group file
-        remote_clients=`cat $group_files/$1 | grep -v ^#`
+        remote_clients=`cat $group_files/$group_name | grep -v ^#`
     elif [ -e $1 ]
     then
         # Found group in manually specified group file
-        remote_clients=`cat $1 | grep -v ^#`
-    elif [ "$spacecmd_support" = "true" ] && $spacecmd -q --server=$spacecmd_hostname -u $spacecmd_username -p $spacecmd_password group_list | grep $1 
+        remote_clients=`cat $group_name | grep -v ^#`
+    elif [ "$spacecmd_support" = "true" ] && \
+            $spacecmd -q --server=$spacecmd_hostname -u $spacecmd_username -p $spacecmd_password group_list | grep $group_name
     then
         remote_clients=`$spacecmd -q --server=$spacecmd_hostname -u $spacecmd_username -p $spacecmd_password group_listsystems $1 | sed -e 's/\x1b\[?1034h//'`
     elif [ -e `get_config shiva.list` ]
@@ -165,8 +167,8 @@ init() {
     fi
 
     ## Variables
-    unsuccessful_list=""
-    successful_list=""
+    export unsuccessful_list=""
+    export successful_list=""
     remote_client_number=0
     script_name=`basename $0`
     short_wait=3
@@ -186,7 +188,7 @@ init() {
 display_debug() {
 
     # Debug Output      
-    debug "Client List: $remote_clients";
+    debug "Client List: $group_name";
     debug "Command: $command"
     debug "Config: $config_file"
     debug "Email: $email_address"
@@ -311,8 +313,6 @@ background_command() {
 
 foreground_command() {
 
-    debug "Running: $command"
-
     # Keep track of running processes using tmp files
     if safe_run "$command"
     then
@@ -432,17 +432,17 @@ report () {
     $echo "End time:   $end_time" >&3
     $echo "" >&3
 
-    if [ "$unsuccessful_list" = "" ]
+    if [ "$successful_list" != "" ]
     then
         successful_report
     fi
-    if [ "$successful_list" = "" ]
+    if [ "$unsuccessful_list" != "" ]
     then
         unsuccessful_report
     fi
 
     # Send report
-    if [ "$email_support" == "true" ]
+    if [ "$email_support" = "true" ]
     then
         $cat /tmp/${script_name}.$$.tmp | $mail -s "Shiva Complete" $email_address
     fi
