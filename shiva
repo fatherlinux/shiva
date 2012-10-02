@@ -79,7 +79,7 @@ get_remote_clients_list() {
         # Found group in manually specified group file
         remote_clients=`cat $group_name | grep -v ^#`
     elif [ "$spacecmd_support" = "true" ] && \
-            $spacecmd -q --server=$spacecmd_hostname -u $spacecmd_username -p $spacecmd_password group_list | grep $group_name
+            $spacecmd -q --server=$spacecmd_hostname -u $spacecmd_username -p $spacecmd_password group_list | grep $group_name &>/dev/null
     then
         remote_clients=`$spacecmd -q --server=$spacecmd_hostname -u $spacecmd_username -p $spacecmd_password group_listsystems $1 | sed -e 's/\x1b\[?1034h//'`
     elif [ -e `get_config shiva.list` ]
@@ -159,11 +159,10 @@ init() {
     scriptlog=`which echo`
 
     # Tunables
+    ssh_options="-o PasswordAuthentication=no"
     if [ "$autoaddkeys_support" = "true" ]
     then
         ssh_options="$ssh_options -o StrictHostKeyChecking=no"
-    else
-        ssh_options="$ssh_options"
     fi
 
     ## Variables
