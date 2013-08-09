@@ -148,7 +148,6 @@ init() {
     cat=`which cat`
     find=`which find`
     mail=`which mail`
-    scp=`which scp`
     ssh=`which ssh`
     sshd=`which sshd`
     rm=`which rm`
@@ -271,8 +270,7 @@ safe_run() {
 
     # Run from the tmp command file, because there is problems on different
     # shell/versions/operating systems and quoting.
-    $echo $1 >/tmp/$safe_command.$rc
-    $scp $ssh_options /tmp/$safe_command.$rc ${user}@${rc}:/tmp/$safe_command.$rc &>/dev/null && \
+    $ssh $ssh_options ${user}\@${rc} "echo $1 > /tmp/$safe_command.$rc"
     $ssh $ssh_options ${user}@${rc} "sh /tmp/$safe_command.$rc" &>/tmp/$safe_output.${rc} && \
     $rm -f /tmp/$safe_command.$rc && \
     $ssh $ssh_options ${user}@${rc} "$rm -f /tmp/$safe_command.$rc"
