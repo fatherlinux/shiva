@@ -82,10 +82,6 @@ get_remote_clients_list() {
             $spacecmd -q --server=$spacecmd_hostname -u $spacecmd_username -p $spacecmd_password group_list | grep $group_name &>/dev/null
     then
         remote_clients=`$spacecmd -q --server=$spacecmd_hostname -u $spacecmd_username -p $spacecmd_password group_listsystems $1 | sed -e 's/\x1b\[?1034h//'`
-    elif [ -e `get_config shiva.list` ]
-    then
-        # Using default list
-        remote_clients=`cat `get_config shiva.list` | grep -v ^#`
     else
         $echo "Could not find a list of servers"
         exit
@@ -97,7 +93,6 @@ init() {
 
     # Set Defaults
     user=root
-    remote_clients_file=`get_config shiva.list`
     config_file=`get_config shiva.conf`
     debug=0
     test_mode=0
@@ -226,10 +221,9 @@ option_scriptlog() {
 option_spacecmd() {
 
     ## Option: Use spacecmd if available
-    if which spacecmd &>/dev/null
+    if which spacecmd &>/dev/null && [ $spacecmd_support = "true" ]
     then
         export spacecmd=`which spacecmd`
-        spacecmd_support="true"
     else
         spacecmd_support="false"
     fi
@@ -240,7 +234,7 @@ list_groups() {
     display_debug
 
     ls -1 $group_files/
-    $spacecmd -q --server=$spacecmd_hostname -u $spacecmd_username -p $spacecmd_password group_list
+    [ "$spacecmd_support" = "true" ] && $spacecmd -q --server=$spacecmd_hostname -u $spacecmd_username -p $spacecmd_password group_list
     exit
 }
 
@@ -251,10 +245,12 @@ list_members() {
     if [ -e $group_files/$1 ]
     then
         cat $group_files/$1
-    elif $spacecmd -q --server=$spacecmd_hostname -u $spacecmd_username -p $spacecmd_password group_listsystems $1 > /tmp/spacecmd.grouplist \
-    && [ `wc -l /tmp/spacecmd.grouplist | awk '{print $1}'` -gt 0 ]
+    elif [ "$spacecmd_support" = "true" ] && \
+            $spacecmd -q --server=$spacecmd_hostname -u $spacecmd_username -p $spacecmd_password group_listsystems $1 > /tmp/spacecmd.grouplist && \
+         [ `wc -l /tmp/spacecmd.grouplist | awk '{print $1}'` -gt 0 ] &>/dev/null
     then
         cat /tmp/spacecmd.grouplist
+        rm -f /tmp/spacecmd.grouplist
     else
 	echo "Could not find group: $1"
     fi
